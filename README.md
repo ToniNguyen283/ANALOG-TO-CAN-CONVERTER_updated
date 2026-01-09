@@ -1,6 +1,2 @@
 # ANALOG-TO-CAN-CONVERTER
-Code for transceiver and receiver
-
-NOTE: 
-The push button from the tranceiver is connected to pin PC13
-It will then send the signal to pin PA05 on the receiver, which is the blinking LED
+This project implements an analog-to-CAN converter using an STM32 microcontroller to digitize analog sensor signals and transmit them as CAN messages on a vehicle data network.
