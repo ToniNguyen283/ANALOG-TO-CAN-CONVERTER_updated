@@ -63,32 +63,12 @@ static void MX_CAN_Init(void);
 CAN_TxHeaderTypeDef TxHeader; //Store the transmit header for message transfer
 CAN_RxHeaderTypeDef RxHeader; //Store the transmit header for message receive
 
-uint8_t TxData[8]; //Store TX data
-uint8_t RxData[8]; //Store RX data
+uint8_t TxData[2]; //Store TX data
+uint8_t RxData[2]; //Store RX data
 
 uint32_t TxMailbox;
 
-int datacheck = 0;
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-	if (GPIO_Pin == GPIO_PIN_13)
-	{
-		TxData[0] = 100;   // ms Delay
-		TxData[1] = 40;    // loop rep
-
-		HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox); //send the data
-	}
-}
-
-void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
-{
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData);
-	if (RxHeader.DLC == 2)
-	{
-		datacheck = 1;
-	}
-}
 
 /* USER CODE END 0 */
 
@@ -106,34 +86,34 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	  /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	  /* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	  /* Configure the system clock */
+	  SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	  /* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	  /* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART2_UART_Init();
-  MX_CAN_Init();
-  /* USER CODE BEGIN 2 */
+	  /* Initialize all configured peripherals */
+	  MX_GPIO_Init();
+	  MX_USART2_UART_Init();
+	  MX_CAN_Init();
+	  /* USER CODE BEGIN 2 */
 
-  HAL_CAN_Start(&hcan);
+	  HAL_CAN_Start(&hcan);
 
-  // Activate the notification
-  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
+	  // Activate the notification
+	  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-  TxHeader.DLC = 2;  // data length
-  TxHeader.IDE = CAN_ID_STD;
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.StdId = 0x303;  // ID
+	  TxHeader.DLC = 2;  // data length
+	  TxHeader.IDE = CAN_ID_STD;
+	  TxHeader.RTR = CAN_RTR_DATA;
+	  TxHeader.StdId = 0x303;  // ID
 
 
   /* USER CODE END 2 */
@@ -143,24 +123,15 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  if (datacheck)
-	  	  {
-	  		  // blink the LED
-	  		  for (int i=0; i<RxData[1]; i++)
-	  		  {
-	  			  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-	  			  HAL_Delay(RxData[0]);
-	  		  }
 
-	  		  datacheck = 0;
-
-	  			TxData[0] = 100;   // ms Delay
-	  			TxData[1] = 40;    // loop rep
-
-	  			HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
-	  	  }
     /* USER CODE BEGIN 3 */
-}
+	  TxData[0] = 3;   // ms Delay
+	  	  	TxData[1] = 9;    // loop rep
+
+	  	  	HAL_Delay (1);
+	  	  	HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
+
+  }
   /* USER CODE END 3 */
 }
 
@@ -227,7 +198,7 @@ static void MX_CAN_Init(void)
   /* USER CODE END CAN_Init 1 */
   hcan.Instance = CAN;
   hcan.Init.Prescaler = 18;
-  hcan.Init.Mode = CAN_MODE_NORMAL;
+  hcan.Init.Mode = CAN_MODE_LOOPBACK;
   hcan.Init.SyncJumpWidth = CAN_SJW_1TQ;
   hcan.Init.TimeSeg1 = CAN_BS1_2TQ;
   hcan.Init.TimeSeg2 = CAN_BS2_1TQ;
@@ -245,11 +216,11 @@ static void MX_CAN_Init(void)
   CAN_FilterTypeDef canfilterconfig;
 
    canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
-   canfilterconfig.FilterBank = 0;  // which filter bank to use from the assigned ones
+   canfilterconfig.FilterBank = 13;  // which filter bank to use from the assigned ones
    canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
-   canfilterconfig.FilterIdHigh = 0x303<<5;
+   canfilterconfig.FilterIdHigh = 0x304<<5;
    canfilterconfig.FilterIdLow = 0;
-   canfilterconfig.FilterMaskIdHigh = 0x303<<5;
+   canfilterconfig.FilterMaskIdHigh = 0x304 << 5;;
    canfilterconfig.FilterMaskIdLow = 0x0000;
    canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
    canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
