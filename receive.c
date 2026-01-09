@@ -63,21 +63,14 @@ static void MX_CAN_Init(void);
 CAN_TxHeaderTypeDef TxHeader; //Store the transmit header for message transfer
 CAN_RxHeaderTypeDef RxHeader; //Store the transmit header for message receive
 
-uint8_t TxData[8]; //Store TX data
-uint8_t RxData[8]; //Store RX data
+uint8_t TxData[2]; //Store TX data
+uint8_t RxData[2]; //Store RX data
 
 uint32_t TxMailbox;
 
-int datacheck = 0;
+volatile uint8_t blink_count = 0;
+void Blink_LED(uint8_t count, uint32_t total_time_ms);
 
-void HAL_CAN_RxFifo1MsgPendingCallback(CAN_HandleTypeDef *hcan)
-{
-	HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO1, &RxHeader, RxData);
-	if (RxHeader.DLC == 2)
-	{
-		datacheck = 1;
-	}
-}
 /* USER CODE END 0 */
 
 /**
@@ -94,36 +87,32 @@ int main(void)
   /* MCU Configuration--------------------------------------------------------*/
 
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-  HAL_Init();
+	HAL_Init();
 
-  /* USER CODE BEGIN Init */
+	  /* USER CODE BEGIN Init */
 
-  /* USER CODE END Init */
+	  /* USER CODE END Init */
 
-  /* Configure the system clock */
-  SystemClock_Config();
+	  /* Configure the system clock */
+	  SystemClock_Config();
 
-  /* USER CODE BEGIN SysInit */
+	  /* USER CODE BEGIN SysInit */
 
-  /* USER CODE END SysInit */
+	  /* USER CODE END SysInit */
 
-  /* Initialize all configured peripherals */
-  MX_GPIO_Init();
-  MX_USART2_UART_Init();
-  MX_CAN_Init();
-  /* USER CODE BEGIN 2 */
-  HAL_CAN_Start(&hcan);
+	  /* Initialize all configured peripherals */
+	  MX_GPIO_Init();
+	  MX_USART2_UART_Init();
+	  MX_CAN_Init();
+	  /* USER CODE BEGIN 2 */
 
-  // Activate the notification
-  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO1_MSG_PENDING);
+	  HAL_CAN_Start(&hcan);
 
-  TxHeader.DLC = 2;  // data length
-  TxHeader.IDE = CAN_ID_STD;
-  TxHeader.RTR = CAN_RTR_DATA;
-  TxHeader.StdId = 0x303;  // ID
+	  // Activate the notification
+	  HAL_CAN_ActivateNotification(&hcan, CAN_IT_RX_FIFO0_MSG_PENDING);
 
-  TxData[0] = 200;  // ms delay
-  TxData[1] = 20;  // loop rep
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -131,22 +120,17 @@ int main(void)
   while (1)
   {
     /* USER CODE END WHILE */
-	  HAL_Delay (1000);
 
-	  if (datacheck)
-	  	  	  {
-	  	  		  // blink the LED
-	  	  		  for (int i=0; i<RxData[1]; i++)
-	  	  		  {
-	  	  			  HAL_GPIO_TogglePin(GPIOA, GPIO_PIN_5);
-	  	  			  HAL_Delay(RxData[0]);
-	  	  		  }
-
-	  	  		  datacheck = 0;
-
-	  	  		  HAL_CAN_AddTxMessage(&hcan, &TxHeader, TxData, &TxMailbox);
-	  	  	  }
     /* USER CODE BEGIN 3 */
+
+	  if (blink_count > 0)
+	  	{
+	  		// Call the blinking function if a blink count has been set by the CAN ISR
+	  		Blink_LED(blink_count, 1000); // Blink 'blink_count' times in 1 second
+	  		blink_count = 0; // Reset the count after blinking is complete
+	  	}
+
+	  	HAL_Delay(1);
   }
   /* USER CODE END 3 */
 }
@@ -231,18 +215,21 @@ static void MX_CAN_Init(void)
   /* USER CODE BEGIN CAN_Init 2 */
   CAN_FilterTypeDef canfilterconfig;
 
-     canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
-     canfilterconfig.FilterBank = 0;  // which filter bank to use from the assigned ones
-     canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO1;
-     canfilterconfig.FilterIdHigh = 0x303<<5;
-     canfilterconfig.FilterIdLow = 0;
-     canfilterconfig.FilterMaskIdHigh = 0x303<<5;
-     canfilterconfig.FilterMaskIdLow = 0x0000;
-     canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
-     canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
-     canfilterconfig.SlaveStartFilterBank = 0;  // how many filters to assign to the CAN
+   canfilterconfig.FilterActivation = CAN_FILTER_ENABLE;
+   canfilterconfig.FilterBank = 0;  // which filter bank to use from the assigned ones
+   canfilterconfig.FilterFIFOAssignment = CAN_FILTER_FIFO0;
+   canfilterconfig.FilterIdHigh = 0;
+   canfilterconfig.FilterIdLow = 0;
+   canfilterconfig.FilterMaskIdHigh = 0;
+   canfilterconfig.FilterMaskIdLow = 0;
+   canfilterconfig.FilterMode = CAN_FILTERMODE_IDMASK;
+   canfilterconfig.FilterScale = CAN_FILTERSCALE_32BIT;
+   canfilterconfig.SlaveStartFilterBank = 0;  // no matter which filters because it is just 1 CAN
 
-     HAL_CAN_ConfigFilter(&hcan, &canfilterconfig);
+   if (HAL_CAN_ConfigFilter(&hcan, &canfilterconfig) != HAL_OK)
+   {
+       Error_Handler();
+   }
   /* USER CODE END CAN_Init 2 */
 
 }
@@ -301,20 +288,20 @@ static void MX_GPIO_Init(void)
   __HAL_RCC_GPIOB_CLK_ENABLE();
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(LD2_GPIO_Port, LD2_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 
-  /*Configure GPIO pin : B1_Pin */
-  GPIO_InitStruct.Pin = B1_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  /*Configure GPIO pin : PC13 */
+  GPIO_InitStruct.Pin = GPIO_PIN_13;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOC, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : LD2_Pin */
-  GPIO_InitStruct.Pin = LD2_Pin;
+  /*Configure GPIO pin : PA5 */
+  GPIO_InitStruct.Pin = GPIO_PIN_5;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-  HAL_GPIO_Init(LD2_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -323,12 +310,54 @@ static void MX_GPIO_Init(void)
 
 /* USER CODE BEGIN 4 */
 
+void HAL_CAN_RxFifo0MsgPendingCallback(CAN_HandleTypeDef *hcan)
+{
+    // 1. Read the message from FIFO 0
+    if (HAL_CAN_GetRxMessage(hcan, CAN_RX_FIFO0, &RxHeader, RxData) == HAL_OK)
+    {
+        // 2. Extract the blink count from the received data.
+        // We assume the number of blinks (e.g., 5) is stored in the first byte (index 0).
+        // It's a good practice to cap this value to prevent issues, e.g., max 10.
+        if (RxData[0] > 0 && RxData[0] <= 10)
+        {
+            blink_count = RxData[0];
+        }
+    }
+    // Note: The actual blinking is done in the main loop to avoid blocking the ISR.
+}
+
+void Blink_LED(uint8_t count, uint32_t total_time_ms)
+{
+    if (count == 0) return; // Do nothing if count is zero
+
+    // Calculate the time for one "blink cycle" (ON + OFF)
+    // The blink cycle must happen 'count' times.
+    uint32_t cycle_time_ms = total_time_ms / count;
+
+    // Calculate the time for the LED to be ON or OFF during one half-cycle
+    // This value represents the HAL_Delay() duration.
+    uint32_t half_cycle_delay = cycle_time_ms / 2;
+
+    for (int i = 0; i < count; i++)
+    {
+        // 1. Turn LED ON
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
+        HAL_Delay(half_cycle_delay);
+
+        // 2. Turn LED OFF
+        HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
+        HAL_Delay(half_cycle_delay);
+    }
+}
+
 /* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.
   * @retval None
   */
+
+
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
